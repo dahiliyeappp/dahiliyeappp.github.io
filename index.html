@@ -1351,10 +1351,34 @@ function isListLine(l){
   var cap=w.filter(function(x){return /^[A-ZÇĞİÖŞÜ]/.test(x)}).length;
   return w.length>=4&&!/:/.test(l)&&cap/w.length>=0.7;
 }
-function cleanLines(t){
-  return String(t).split(/\n+/).map(function(s){return clean(s).replace(/^[\s•➢▪❖◦\-–*]+/,"").replace(/\s*\|\s*/g," · ").replace(/\s+/g," ").trim()})
-    .filter(isGoodLine);
+function normSlideLine(s){
+  return clean(s).replace(/[\uE000-\uF8FF]/g," ").replace(/^[\s•➢▪❖◦○●□■►▸✓✔\-–*·]+/,"").replace(/\s*\|\s*/g," · ").replace(/\s+/g," ").trim();
 }
+function cleanLines(t){
+  return String(t).split(/\n+/).map(normSlideLine).filter(isGoodLine);
+}
+function isAllCapsHead(l){
+  if(/[:%]/.test(l)||l.length>95)return false;
+  var up=(l.match(/[A-ZÇĞİÖŞÜ]/g)||[]).length, lo=(l.match(/[a-zçğıöşü]/g)||[]).length;
+  return up>=4&&up>=lo*2.5;
+}
+function splitMergedLines(text,isSlide){
+  var raw=String(text).split(/\n+/).map(normSlideLine);
+  if(!isSlide)return raw;
+  var out=[];
+  for(var i=0;i<raw.length;i++){
+    var l=raw[i]; if(!l)continue;
+    if(isFooter(l)||CASE_RE.test(l)){out.push(l);continue}
+    var prev=out.length?out[out.length-1]:"";
+    if(prev&&/^[a-zçğıöşü]/.test(l)&&!isFooter(prev)&&!CASE_RE.test(prev)&&!isAllCapsHead(prev)&&!/[.!?:;]$/.test(prev)){
+      out[out.length-1]=prev+" "+l;
+    }else{
+      out.push(l);
+    }
+  }
+  return out;
+}
+var TR_PRED_RE=/((vardir|yoktur|degildir|olur|olabilir|olmalidir|olmali|olusturur|edilir|edilebilir|edilmelidir|edilmemelidir|yapilir|yapilmalidir|yapilmali|gorulur|gorulebilir|verilir|verilmelidir|onerilir|gerekir|gereklidir|gerektirir|azalir|azaltir|artar|artirir|arttirir|yapar|saglar|gosterir|bulunur|icerir|baskilar|uyarir|etkiler|karisir|gelisir|seyreder|baslar|biter|surdurulur|kullanilir|kullanilmaz|kullanilmamalidir|kontrendikedir|endikedir|eslik eder|inhibe eder|neden olur|yol acar|sebep olur|tanimlanir|izlenir|degerlendirilir|saptanir|saptanabilir|yukselir|duser|bozulur|korur|onler|duzelir|geriler|ilerler|beklenir|dusundurur|dislanir|dogrulanir|siniflandirilir|ayrilir|baglidir|iliskilidir|gerekmez|etmez|almaz|vermez|kalir|gecer|tutar|nedeni|sebebi|kriteri|bulgusu|belirtisi|sonucu)|[a-z]{3,}(dir|tir|dur|tur|lidir|sizdir|malidir|melidir|mali|meli|abilir|ebilir|mektedir|maktadir|mistir|mustur|iyor|uyor)|'\s*(dir|tir|dur|tur))([.!?;)\s]|$)/;
 
 /* ---------- Konu anlatımı (derlenmiş bilgi önce, sonra slayt) ---------- */
 function answerTopic(q,qs,f,kb,sq,box,fromBank){
@@ -1364,6 +1388,7 @@ function answerTopic(q,qs,f,kb,sq,box,fromBank){
   else if(MODE==="oto")card.appendChild(el("div","mode-note","Yalnızca konu adı yazıldığı için konu anlatımı gösteriliyor. Tek bir cevap istiyorsan 'Kısa cevap'ı seç ya da soruyu 'tanı', 'tedavi' gibi bir kelimeyle sor."));
   var lg=el("div","tl-legend"); lg.append(el("span","k-qa","Çıkmış soru cevabı"),el("span","k-slide","Slayt"),el("span","k-x","Slayt dışı")); card.appendChild(lg);
 
+  var qSec=secOf(q);
   var groups=(CUR_GROUPS||[]).filter(function(m){return !INTENT.has(m.st)});
   if(!groups.length)groups=CUR_GROUPS||[];
   function hits(line){var lt=new Set(terms(line)); return groups.filter(function(m){return gHit(m,lt)}).length}
@@ -1378,19 +1403,33 @@ function answerTopic(q,qs,f,kb,sq,box,fromBank){
   // Konu satırın ilk iki kelimesinde mi? ("Behçet hastalığında…", "B) Behçet…" evet; "(vaskülitler, Behçet…" hayır)
   function topicFirst(l){var w=fold(l.replace(/^([\s\d.)•➢▪❖◦\-–*·(]|[A-Ea-e]\))+/,"").split(",")[0]).split(/[^a-z0-9]+/).filter(Boolean).slice(0,2).join(" "); return groups.some(function(m){return m.alts.some(function(a){return w.indexOf(a.slice(0,5))>=0})})}
   function numItems(l){return (l.match(/(^|\s)\d+[.)]\s/g)||[]).length}
+  function isSelfContainedSlide(l){
+    if(/\S\s*:\s*\S/.test(l))return true;
+    if(/[%→]/.test(l))return true;
+    var noPar=l.replace(/\([^)]*\)/g,"");
+    if(/[≥≤=<>]/.test(noPar))return true;
+    if(numItems(l)>=2||(l.match(/✓/g)||[]).length>=2)return true;
+    if(TR_PRED_RE.test(fold(l)))return true;
+    return false;
+  }
   function addText(text,kind,src,start,mustHit){
-    var cur=start||"tanim", inCase=0;
-    String(text).split(/\n+/).forEach(function(raw){
-      var l=clean(raw).replace(/^[\s•➢▪❖◦\-–*]+/,"").replace(/\s*\|\s*/g," · ").replace(/\s+/g," ").trim();
+    var cur=start||"tanim", inCase=0, isSlide=kind==="slide";
+    splitMergedLines(text,isSlide).forEach(function(l){
       if(isFooter(l)){inCase=0;return}                       // slayt sınırı: vaka bloğu biter
       if(CASE_RE.test(l)){inCase=12;return}                   // vaka/olgu sunumu: lab değerleri vb. konu anlatımına girmez
       if(inCase>0){inCase--;return}
-      if(!isGoodLine(l))return;
+      if(isSlide){if(!isGoodLine(l))return}
+      else{if(l.length<6||REF_RE.test(l)||BOILER_RE.test(l))return}
       if(mustHit&&hits(l)<need)return;                        // karşılaştırma sorusunda yalnız konuyu anan satırlar
-      var s=secOf(l), isHead=l.length<45&&!/[.;]$/.test(l);
+      var s=(!isSlide&&/^\d+[.)]\s/.test(l))?null:secOf(l), isHead=l.length<45&&!/[.;]$/.test(l);
+      if(isSlide&&isAllCapsHead(l)){if(s)cur=s;return}        // büyük harfli slayt başlık parçası ("TİP 2 DİYABETTE HASTA MERKEZLİ")
       if(isHead&&s)cur=s;
       if(isHead&&!/[:\d%]/.test(l))return;
       if(/\(İngilizce slaytın Türkçe çevirisi\)$/.test(l))return;
+      if(isSlide){
+        if(/^[a-zçğıöşü]/.test(l)||/[,;\-–]$/.test(l))return; // yarım kalmış devam veya kopuk tablo satırı
+        if(!isSelfContainedSlide(l))return;                   // ilaç/başlık bağlamı kopmuş tablo hücresi
+      }
       add(l,s||cur,kind,src);
     });
   }
@@ -1409,13 +1448,17 @@ function answerTopic(q,qs,f,kb,sq,box,fromBank){
   if(!f.kaynak)KB.filter(function(d){return d.x&&kbOK(d,f)&&rawTitleCoverage(qs,d.b)>=0.5}).forEach(function(x){addText(x.t,"x","Slayt dışı: "+x.b)});
   // 3) Slaytlar
   if(f.kaynak!=="soru"){
-    var focusFiles={};
-    KB.forEach(function(d){ if(!d.x&&kbOK(d,f)&&hits(d.f)>=need)focusFiles[d.f]=true });
+    var allFocusFiles={}, focusFiles={};
+    KB.forEach(function(d){ if(!d.x&&kbOK(d,f)&&hits(d.f)>=need)allFocusFiles[d.f]=focusFiles[d.f]=true });
+    var fKeys=Object.keys(focusFiles);
+    if(qSec&&fKeys.length>2){
+      var secFiles=fKeys.filter(function(fn){return secOf(fn)===qSec});
+      if(secFiles.length){focusFiles={}; secFiles.forEach(function(fn){focusFiles[fn]=true})}
+    }
     KB.filter(function(d){return !d.x&&focusFiles[d.f]}).forEach(function(d){addText(d.t,"slide",shortSrc(d))});
-    kb.filter(function(d){return !d.x&&!focusFiles[d.f]}).slice(0,15).forEach(function(d){
+    kb.filter(function(d){return !d.x&&!allFocusFiles[d.f]}).slice(0,15).forEach(function(d){
       var cur="tanim", inTopic=false, lastHead="", inCase=0;
-      String(d.t).split(/\n+/).forEach(function(raw){
-        var l=clean(raw).replace(/^[\s•➢▪❖◦\-–*]+/,"").replace(/\s*\|\s*/g," · ").replace(/\s+/g," ").trim();
+      splitMergedLines(d.t,true).forEach(function(l){
         if(isFooter(l)){inCase=0;inTopic=false;return}
         if(CASE_RE.test(l)){inCase=12;inTopic=false;return}
         if(inCase>0){inCase--;return}
@@ -1430,16 +1473,19 @@ function answerTopic(q,qs,f,kb,sq,box,fromBank){
         if(hh&&!topicFirst(l)&&/^[A-ZÇĞİÖŞÜ][^\s,]+\s+(Hastalığı|Sendromu|hastalığı|sendromu)/.test(l))return; // "Addison Hastalığı'nda görülen…": satır başka bir hastalık hakkında
         if(hh&&(numItems(l)>=3||(!topicFirst(l)&&isListLine(l)))){inTopic=false;return}   // konu, başka hastalıklar listesinin bir maddesi
         if(isHead){ inTopic=hh&&topicFirst(l); if(s)cur=s; lastHead=/^[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜ0-9 \-]{1,12}:$/.test(l)?l.replace(/:$/,""):""; if(!/[:\d%]/.test(l)&&l.length<45)return }
+        if(isAllCapsHead(l)){if(s)cur=s;return}
         if(hh&&!inTopic&&(numItems(l)>=3||(!topicFirst(l)&&isListLine(l))))return;   // konu, başka hastalıklar listesinin bir maddesi
         // Öznesi başlıkta kalan satır ("Erişkinde NS'nin en sık nedenidir"): kısa başlık varsa önüne eklenir (MGN: …), yoksa anlamsız kalacağı için alınmaz
         if(hh&&!inTopic&&!/^[^:]{2,30}:/.test(l)&&!topicFirst(l)&&/^(NS\b|Erişkinde|Çocuklarda|Yetişkinde|İdiop|En sık|%|Sıklıkla|Genellikle)/i.test(l)){ if(!lastHead)return; l=lastHead+": "+l }
+        if(/^[a-zçğıöşü]/.test(l)||/[,;\-–]$/.test(l)||!isSelfContainedSlide(l))return;
         if(hh||inTopic)add(l,s||cur,"slide",shortSrc(d));
       });
     });
   }
 
   var any=false, rank={qa:0,slide:1,x:2};
-  SECTIONS.forEach(function(S){
+  var orderedSecs=qSec?SECTIONS.filter(function(S){return S[0]===qSec}).concat(SECTIONS.filter(function(S){return S[0]!==qSec})):SECTIONS;
+  orderedSecs.forEach(function(S){
     var items=buckets[S[0]]; if(!items||!items.length)return; any=true;
     items.sort(function(a,b){return rank[a.k]-rank[b.k]||a.o-b.o});
     var sec=el("section","tsec"); sec.appendChild(el("h4","sec",S[1]));
