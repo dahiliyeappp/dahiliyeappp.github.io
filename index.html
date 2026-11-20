@@ -241,7 +241,6 @@ mark.hl{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 
         <button type="button" data-mode="kisa" aria-pressed="false">Kısa cevap</button>
         <button type="button" data-mode="konu" aria-pressed="false">Konu anlatımı</button>
       </div>
-      <label class="sel"><span>Kaynak</span><select id="fKaynak"><option value="">Hepsi</option><option value="slayt">Yalnız slaytlar</option><option value="soru">Yalnız çıkmış sorular</option></select></label>
     </div>
     <div class="legend">
       <span><span class="sw slide"></span>Slayt: ders slaytından alınan metin</span>
@@ -598,7 +597,7 @@ function sourceCard(d,qs){
 /* ---------- filtreler ve mod ---------- */
 var CAT2DERS={"ENDOKRİNOLOJİ":"Endokrinoloji","GASTROENTEROLOJİ":"Gastroenteroloji","HEMATOLOJİ":"Hematoloji","NEFROLOJİ":"Nefroloji","ENFEKSİYON HASTALIKLARI":"Enfeksiyon","ONKOLOJİ":"Onkoloji","ROMATOLOJİ":"Romatoloji","GENEL DAHİLİYE":"Genel Dahiliye"};
 var MODE="oto";
-function getFilters(){return {ders:"", kaynak:$("fKaynak").value}}
+function getFilters(){return {ders:"", kaynak:""}}
 function kbOK(d,f){ if(f.kaynak==="soru")return false; if(f.kaynak==="slayt"&&d.x)return false; return !f.ders||d.d===f.ders }
 function qaOK(x,f){ if(f.kaynak==="slayt")return false; return !f.ders||CAT2DERS[x.cat]===f.ders }
 function moreSections(box,list,title){
@@ -1033,7 +1032,7 @@ function ask(){
   var f=getFilters();
   var kb=kbIndex.searchGroups(CUR_GROUPS,120).filter(function(d){return kbOK(d,f)});
   var sq=qaIndex.searchGroups(CUR_GROUPS,60).filter(function(x){return qaOK(x,f)});
-  if(!kb.length&&!sq.length){box.appendChild(el("p","empty","Bu filtreyle eşleşen bir şey bulunamadı. Kaynak filtresini 'Hepsi' yapmayı ya da farklı kelimeler denemeyi dene."));return}
+  if(!kb.length&&!sq.length){box.appendChild(el("p","empty","Bu aramayla eşleşen bir şey bulunamadı. Farklı veya daha kısa kelimelerle denemeyi dene."));return}
   var mode=MODE==="oto"?(isShortQuery(q,CUR_GROUPS)?"kisa":"konu"):MODE;
   if(mode==="konu")answerTopic(q,qs,f,kb,sq,box); else answerShort(q,qs,f,kb.slice(0,12),sq.slice(0,40),box,kb.slice(0,20));
   addResultsClose(box);
@@ -1485,7 +1484,6 @@ $("ask").onclick=ask;
 (function(){
   function setMode(m){MODE=m; Array.prototype.forEach.call($("modeSeg").children,function(b){b.setAttribute("aria-pressed",String(b.getAttribute("data-mode")===m))}); try{localStorage.setItem("mode",m)}catch(e){}}
   Array.prototype.forEach.call($("modeSeg").children,function(b){b.onclick=function(){setMode(b.getAttribute("data-mode")); if($("q").value.trim())ask()}});
-  $("fKaynak").addEventListener("change",function(){try{localStorage.setItem("fKaynak",$("fKaynak").value)}catch(e){} if($("q").value.trim())ask()});
   try{var m=localStorage.getItem("mode"); if(m)setMode(m)}catch(e){}
   // Koyu / Açık tema düğmesi
   function applyTheme(t){
