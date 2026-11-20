@@ -421,7 +421,7 @@ function buildAnswer(qa,qset,withSearchBtn){
   if(qa.not){var nb=el("div","box extra"); nb.appendChild(el("div","lbl","Slaytla fark")); nb.appendChild(el("div","l",qa.not)); a.appendChild(nb)}
   if(withSearchBtn){
     var act=el("div","qa-actions"), btn=el("button","btn ghost","Bu soruyu slaytlarda ara");
-    btn.addEventListener("click",function(){ selectTab("ara"); $("q").value=qa.q; ask(); window.scrollTo({top:0,behavior:"smooth"}); });
+    btn.addEventListener("click",function(){ selectTab("ara"); $("q").value=qa.q; ask("konu"); window.scrollTo({top:0,behavior:"smooth"}); });
     act.appendChild(btn); a.appendChild(act);
   }
   return a;
@@ -1023,7 +1023,7 @@ function renderSection(container,S,showHead,qset){
   container.appendChild(ul);
 }
 
-function ask(){
+function ask(forceMode){
   var q=$("q").value.trim(), box=$("results"); box.textContent="";
   if(!q){$("q").focus();return}
   try{if(history&&history.replaceState)history.replaceState(null,"","#q="+encodeURIComponent(q))}catch(e){}
@@ -1033,8 +1033,9 @@ function ask(){
   var kb=kbIndex.searchGroups(CUR_GROUPS,120).filter(function(d){return kbOK(d,f)});
   var sq=qaIndex.searchGroups(CUR_GROUPS,60).filter(function(x){return qaOK(x,f)});
   if(!kb.length&&!sq.length){box.appendChild(el("p","empty","Bu aramayla eşleşen bir şey bulunamadı. Farklı veya daha kısa kelimelerle denemeyi dene."));return}
-  var mode=MODE==="oto"?(isShortQuery(q,CUR_GROUPS)?"kisa":"konu"):MODE;
-  if(mode==="konu")answerTopic(q,qs,f,kb,sq,box); else answerShort(q,qs,f,kb.slice(0,12),sq.slice(0,40),box,kb.slice(0,20));
+  var fm=(typeof forceMode==="string")?forceMode:null;
+  var mode=fm||(MODE==="oto"?(isShortQuery(q,CUR_GROUPS)?"kisa":"konu"):MODE);
+  if(mode==="konu")answerTopic(q,qs,f,kb,sq,box,fm==="konu"); else answerShort(q,qs,f,kb.slice(0,12),sq.slice(0,40),box,kb.slice(0,20));
   addResultsClose(box);
 }
 
@@ -1356,10 +1357,11 @@ function cleanLines(t){
 }
 
 /* ---------- Konu anlatımı (derlenmiş bilgi önce, sonra slayt) ---------- */
-function answerTopic(q,qs,f,kb,sq,box){
+function answerTopic(q,qs,f,kb,sq,box,fromBank){
   var card=el("div","answer");
   var h=el("div","ans-head"); h.appendChild(el("span","ans-lbl","Konu anlatımı")); card.appendChild(h);
-  if(MODE==="oto")card.appendChild(el("div","mode-note","Yalnızca konu adı yazıldığı için konu anlatımı gösteriliyor. Tek bir cevap istiyorsan 'Kısa cevap'ı seç ya da soruyu 'tanı', 'tedavi' gibi bir kelimeyle sor."));
+  if(fromBank)card.appendChild(el("div","mode-note","Çıkmış sorudan gelindiği için slayt ve notlardan derlenen konu anlatımı gösteriliyor. Yalnızca kısa cevabı görmek istersen 'Kısa cevap'ı seç."));
+  else if(MODE==="oto")card.appendChild(el("div","mode-note","Yalnızca konu adı yazıldığı için konu anlatımı gösteriliyor. Tek bir cevap istiyorsan 'Kısa cevap'ı seç ya da soruyu 'tanı', 'tedavi' gibi bir kelimeyle sor."));
   var lg=el("div","tl-legend"); lg.append(el("span","k-qa","Çıkmış soru cevabı"),el("span","k-slide","Slayt"),el("span","k-x","Slayt dışı")); card.appendChild(lg);
 
   var groups=(CUR_GROUPS||[]).filter(function(m){return !INTENT.has(m.st)});
