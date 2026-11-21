@@ -1978,7 +1978,7 @@ function answerGemini(q,qs,f,kb,sq,box,bypassCache){
   function addFollowUpUI(fromCache){
     var fWrap=el("div","g-follow");
     var fRow=el("div","g-follow-row");
-    var fIn=el("input"); fIn.type="search"; fIn.placeholder="Devam sorusu sor (ör. 'Dozunu aç', 'Hocanın en çok taktığı fark nedir?')";
+    var fIn=el("input"); fIn.type="search"; fIn.placeholder="Devam sorusu sor (ör. Özetle)";
     var fBtn=el("button","btn ghost","Sor"); fBtn.type="button";
     function sendFollow(){
       var fq=fIn.value.trim(); if(!fq)return;
